@@ -1,0 +1,41 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: stockpilot
+      MYSQL_USER: stockpilot
+      MYSQL_PASSWORD: stockpilot_local
+      MYSQL_ROOT_PASSWORD: root_local
+    ports: ["3306:3306"]
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck: { test: ["CMD", "mysqladmin", "ping", "-h", "localhost"], interval: 5s, timeout: 3s, retries: 20 }
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  api:
+    build: ./stockpilot-api
+    env_file: ./stockpilot-api/.env
+    depends_on: { mysql: { condition: service_healthy }, redis: { condition: service_started } }
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports: ["8000:8000"]
+    volumes: [./stockpilot-api:/var/www/html]
+  queue:
+    build: ./stockpilot-api
+    env_file: ./stockpilot-api/.env
+    depends_on: [api, redis]
+    command: php artisan queue:work --tries=3 --timeout=90
+    volumes: [./stockpilot-api:/var/www/html]
+  scheduler:
+    build: ./stockpilot-api
+    env_file: ./stockpilot-api/.env
+    depends_on: [api]
+    command: php artisan schedule:work
+    volumes: [./stockpilot-api:/var/www/html]
+  web:
+    build:
+      context: ./stockpilot-web
+      args: { VITE_API_URL: http://localhost:8000/api/v1 }
+    depends_on: [api]
+    ports: ["5173:80"]
+volumes:
+  mysql_data:

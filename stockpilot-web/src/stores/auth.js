@@ -1,0 +1,2 @@
+import{create}from'zustand';import{api,csrf}from'../api/client'
+export const useAuth=create((set,get)=>({user:null,loading:true,async restore(){try{const{data}=await api.get('/auth/user');set({user:data.data})}catch{set({user:null})}finally{set({loading:false})}},async login(credentials){await csrf();const{data}=await api.post('/auth/login',credentials);set({user:data.data});return data.data},async logout(){await api.post('/auth/logout');set({user:null})},can(permission){return get().user?.permissions?.includes(permission)}}))
