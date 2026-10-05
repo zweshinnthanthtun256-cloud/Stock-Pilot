@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowUpRight, Boxes, Building2, CircleDollarSign, Package, ShoppingCart, Sparkles, Truck, Users } from 'lucide-react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
 
@@ -22,12 +22,19 @@ function ChartTooltip({active,payload,label}) {
   return <div className="rounded-xl border border-white/10 bg-[#08140e]/95 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="text-xs font-semibold text-[#7f9387]">{payload[0].name||label}</div><div className="mt-1 text-lg font-black text-[#d8ff91]">{Number(payload[0].value).toLocaleString()} <span className="text-xs font-medium text-[#7f9387]">units</span></div></div>
 }
 
+function MovementTooltip({active,payload}) {
+  if (!active || !payload?.length) return null
+  const point=payload[0].payload
+  return <div className="min-w-44 rounded-xl border border-white/10 bg-[#08140e]/95 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="truncate text-xs font-bold text-[#cdd9d1]">{point.product}</div><div className="mt-1 text-[10px] uppercase tracking-wider text-[#64796d]">{point.warehouse} · {point.type.replaceAll('_',' ')}</div><div className="mt-2 text-lg font-black text-[#d8ff91]">{point.quantity.toLocaleString()} <span className="text-xs font-medium text-[#7f9387]">units moved</span></div></div>
+}
+
 export function Dashboard() {
   const [data,setData]=useState(null)
   const [error,setError]=useState('')
   useEffect(()=>{api.get('/dashboard').then(r=>setData(r.data.data)).catch(e=>setError(e.message))},[])
   const warehouseRows=(data?.stock_by_warehouse||[]).map(row=>({...row,quantity:Number(row.quantity||0)}))
   const totalStock=warehouseRows.reduce((sum,row)=>sum+row.quantity,0)
+  const movementTrend=[...(data?.recent_movements||[])].reverse().map((movement,index)=>({label:`${index+1}`,quantity:Number(movement.quantity||0),product:movement.product?.name||'Product',warehouse:movement.warehouse?.name||'Warehouse',type:movement.type||'movement'}))
 
   if(error) return <div className="card p-12 text-center"><AlertTriangle className="mx-auto text-amber-400"/><h2 className="mt-3 font-bold">Dashboard unavailable</h2><p className="mt-1 text-sm text-[#819389]">{error}</p></div>
 
@@ -48,6 +55,12 @@ export function Dashboard() {
         <div className="relative z-10 mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#5f7468]"><span className="h-1.5 w-1.5 rounded-full bg-[#65cf83]"/>Synced with inventory</div>
       </div>)}
     </div>
+
+    <section className="card overflow-hidden p-5 md:p-6">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="panel-title">Movement volume</h3><p className="mt-1 text-sm text-[#75897d]">Quantity moved across the latest inventory transactions</p></div><div className="flex items-center gap-2 rounded-full border border-[#63d58b]/12 bg-[#63d58b]/7 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8de3a5]"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#78df96]"/>Live activity</div></div>
+      <div className="h-64"><ResponsiveContainer><LineChart data={movementTrend} margin={{top:10,right:12,left:-20,bottom:0}}><defs><linearGradient id="lineGlow" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#45bd91"/><stop offset="50%" stopColor="#b7f34b"/><stop offset="100%" stopColor="#69da8e"/></linearGradient><filter id="lineShadow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><CartesianGrid strokeDasharray="4 8" vertical={false} stroke="rgba(255,255,255,.065)"/><XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'#64796d',fontSize:10,fontWeight:700}} tickFormatter={value=>`MOVE ${value}`}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#5d7166',fontSize:10}}/><Tooltip content={<MovementTooltip/>} cursor={{stroke:'rgba(183,243,75,.2)',strokeDasharray:'4 4'}}/><Line type="monotone" dataKey="quantity" stroke="url(#lineGlow)" strokeWidth={4} dot={{r:4,fill:'#0d1c14',stroke:'#b7f34b',strokeWidth:3}} activeDot={{r:7,fill:'#b7f34b',stroke:'#0d1c14',strokeWidth:4}} animationDuration={1300} animationEasing="ease-out" style={{filter:'url(#lineShadow)'}}/></LineChart></ResponsiveContainer></div>
+      {data&&movementTrend.length===0&&<div className="-mt-40 pb-28 text-center text-sm text-[#6d8276]">Movement activity will appear here.</div>}
+    </section>
 
     <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
       <section className="card overflow-hidden p-5 md:p-6">
