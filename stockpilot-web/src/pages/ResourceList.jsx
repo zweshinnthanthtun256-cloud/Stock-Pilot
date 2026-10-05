@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { Eye, Pencil, Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { DataTable } from '../components/DataTable'
 
@@ -17,6 +18,7 @@ const configs = {
 }
 
 export function ResourceList({ type }) {
+  const navigate = useNavigate()
   const cfg = configs[type]
   const [state, setState] = useState({ rows:[], page:1, last:1, loading:true })
   const [search, setSearch] = useState('')
@@ -31,6 +33,9 @@ export function ResourceList({ type }) {
     }, 250)
     return () => clearTimeout(timer)
   }, [endpoint, search, state.page])
-  const columns = cfg.columns.map(([key,label]) => ({ key, label, render:v => typeof v === 'object' ? (v?.name||v?.company_name||'—') : key === 'is_active' ? (v?'Active':'Inactive') : v }))
-  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-bold tracking-tight">{cfg.title}</h2><p className="mt-1 text-sm text-[#718078]">{cfg.description}</p></div>{!['inventory','movements'].includes(type)&&<button className="btn-primary"><Plus size={17}/>Create {cfg.title.replace(/s$/,'')}</button>}</div><div className="card flex flex-wrap items-center gap-3 p-3"><div className="relative min-w-64 flex-1"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input className="input pl-9" placeholder={`Search ${cfg.title.toLowerCase()}…`} value={search} onChange={e=>{setSearch(e.target.value);setState(s=>({...s,page:1}))}}/></div><button className="btn-secondary"><SlidersHorizontal size={16}/>Filters</button></div><DataTable columns={columns} rows={state.rows} loading={state.loading} page={state.page} lastPage={state.last} onPage={page=>setState(s=>({...s,page}))}/></div>
+  const detailTypes=['products','purchases','transfers','sales','adjustments']
+  const editableTypes=['products','suppliers','warehouses','users']
+  const columns = [...cfg.columns.map(([key,label]) => ({ key, label, render:v => typeof v === 'object' ? (v?.name||v?.company_name||'—') : key === 'is_active' ? (v?'Active':'Inactive') : v })),...(detailTypes.includes(type)||editableTypes.includes(type)?[{key:'actions',label:'Actions',render:(_,row)=><div className="flex gap-1">{detailTypes.includes(type)&&<button className="rounded-lg p-2 hover:bg-slate-100" onClick={()=>navigate(`/${type}/${row.id}`)}><Eye size={16}/></button>}{editableTypes.includes(type)&&<button className="rounded-lg p-2 hover:bg-slate-100" onClick={()=>navigate(`/${type}/${row.id}/edit`)}><Pencil size={16}/></button>}</div>}]:[])]
+  const createPath={products:'/products/new',suppliers:'/suppliers/new',warehouses:'/warehouses/new',users:'/users/new',purchases:'/purchases/new',transfers:'/transfers/new',sales:'/sales/new'}[type]
+  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-bold tracking-tight">{cfg.title}</h2><p className="mt-1 text-sm text-[#718078]">{cfg.description}</p></div>{createPath&&<button className="btn-primary" onClick={()=>navigate(createPath)}><Plus size={17}/>Create {cfg.title.replace(/s$/,'')}</button>}</div><div className="card flex flex-wrap items-center gap-3 p-3"><div className="relative min-w-64 flex-1"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input className="input pl-9" placeholder={`Search ${cfg.title.toLowerCase()}…`} value={search} onChange={e=>{setSearch(e.target.value);setState(s=>({...s,page:1}))}}/></div><button className="btn-secondary"><SlidersHorizontal size={16}/>Filters</button></div><DataTable columns={columns} rows={state.rows} loading={state.loading} page={state.page} lastPage={state.last} onPage={page=>setState(s=>({...s,page}))}/></div>
 }

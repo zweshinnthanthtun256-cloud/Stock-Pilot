@@ -16,6 +16,12 @@ Base URL: `/api/v1`. Protected endpoints require an authenticated Sanctum SPA se
 | POST | `/purchase-orders/{id}/receive` | `purchases.receive` | Partial/final receiving; validates outstanding quantities. |
 | GET | `/transfers` | Authenticated | Paginated transfer workflow. |
 | POST | `/transfers/{id}/{approve|ship|receive}` | `transfers.manage` | State-gated transfer transition. |
+| GET/PUT | `/settings` | `settings.manage` | Read or update validated system configuration. |
+| GET | `/notifications` | Authenticated | Paginated database notifications. |
+| GET | `/audit-logs` | `audit.view` | Filterable immutable audit history. |
+| POST | `/products/{id}/image` | `master.manage` | Validated product image upload. |
+| GET | `/products/{id}/barcode` | Authenticated | Printable SVG barcode. |
+| GET | `/reports/{report}` | `reports.view` | Inventory, low-stock, movements, purchasing, supplier, transfer, adjustment, or valuation report. |
 
 ## Receive request
 

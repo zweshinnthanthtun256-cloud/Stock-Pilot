@@ -1,24 +1,179 @@
 <?php
+
 namespace App\Http\Controllers\Api\V1;
+
 use App\Http\Controllers\Controller;
-use App\Models\{Inventory,Product,PurchaseOrder,SalesOrder,StockAdjustment,Transfer};
-use App\Services\{AdjustmentService,PurchasingService,ReferenceNumber,SalesService,TransferService};
-use Illuminate\Support\Facades\DB;
+use App\Models\Inventory;
+use App\Models\PurchaseOrder;
+use App\Models\SalesOrder;
+use App\Models\StockAdjustment;
+use App\Models\Transfer;
+use App\Services\AdjustmentService;
+use App\Services\NotificationService;
+use App\Services\PurchasingService;
+use App\Services\ReferenceNumber;
+use App\Services\SalesService;
+use App\Services\TransferService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+
 class WorkflowController extends Controller
 {
-    public function purchaseOrders(Request $r){return response()->json(PurchaseOrder::with('supplier:id,company_name','warehouse:id,name')->latest()->paginate(20));}
-    public function createPurchaseOrder(Request $r){$d=$r->validate(['supplier_id'=>'required|exists:suppliers,id','warehouse_id'=>'required|exists:warehouses,id','order_date'=>'required|date','expected_delivery_date'=>'nullable|date|after_or_equal:order_date','discount'=>'nullable|decimal:0,2|min:0','tax'=>'nullable|decimal:0,2|min:0','notes'=>'nullable|string','items'=>'required|array|min:1','items.*.product_id'=>'required|distinct|exists:products,id','items.*.quantity'=>'required|numeric|gt:0','items.*.unit_price'=>'required|decimal:0,2|min:0']);abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']),403);$order=DB::transaction(function()use($d,$r){$subtotal=collect($d['items'])->sum(fn($i)=>$i['quantity']*$i['unit_price']);$order=PurchaseOrder::create(['number'=>ReferenceNumber::next('purchase_orders','PO'),'supplier_id'=>$d['supplier_id'],'warehouse_id'=>$d['warehouse_id'],'order_date'=>$d['order_date'],'expected_delivery_date'=>$d['expected_delivery_date']??null,'subtotal'=>$subtotal,'discount'=>$d['discount']??0,'tax'=>$d['tax']??0,'total'=>$subtotal-($d['discount']??0)+($d['tax']??0),'notes'=>$d['notes']??null,'created_by'=>$r->user()->id]);foreach($d['items'] as $item)$order->items()->create($item+['line_total'=>$item['quantity']*$item['unit_price']]);return $order->load('items.product');},3);return response()->json(['message'=>'Purchase order created.','data'=>$order],201);}
-    public function submitPurchaseOrder(PurchaseOrder $order){abort_unless($order->status==='draft',422,'Only draft orders can be submitted.');$order->update(['status'=>'pending_approval']);return response()->json(['message'=>'Purchase order submitted.','data'=>$order]);}
-    public function approvePurchaseOrder(Request $r,PurchaseOrder $order){abort_unless($order->status==='pending_approval',422,'Only pending orders can be approved.');$order->update(['status'=>'approved','approved_by'=>$r->user()->id,'approved_at'=>now()]);return response()->json(['message'=>'Purchase order approved.','data'=>$order]);}
-    public function receive(Request $r,PurchaseOrder $order,PurchasingService $service){$d=$r->validate(['items'=>'required|array|min:1','items.*.item_id'=>'required|integer','items.*.quantity'=>'required|numeric|gt:0','notes'=>'nullable|string']);abort_unless($r->user()->canAccessWarehouse($order->warehouse_id),403);return response()->json(['message'=>'Goods received.','data'=>$service->receive($order,$d['items'],$r->user(),$d['notes']??null)],201);}
-    public function transfers(){return response()->json(Transfer::with('sourceWarehouse:id,name','destinationWarehouse:id,name','items.product:id,sku,name')->latest()->paginate(20));}
-    public function createTransfer(Request $r){$d=$r->validate(['source_warehouse_id'=>'required|different:destination_warehouse_id|exists:warehouses,id','destination_warehouse_id'=>'required|exists:warehouses,id','notes'=>'nullable|string','items'=>'required|array|min:1','items.*.product_id'=>'required|distinct|exists:products,id','items.*.quantity'=>'required|numeric|gt:0']);abort_unless($r->user()->canAccessWarehouse($d['source_warehouse_id']),403);$transfer=DB::transaction(function()use($d,$r){foreach($d['items'] as $item){$available=(float)(Inventory::where(['product_id'=>$item['product_id'],'warehouse_id'=>$d['source_warehouse_id']])->value(DB::raw('on_hand-reserved'))??0);if($available<$item['quantity'])abort(422,'Insufficient source stock.');}$t=Transfer::create(['number'=>ReferenceNumber::next('transfers','TRF'),'source_warehouse_id'=>$d['source_warehouse_id'],'destination_warehouse_id'=>$d['destination_warehouse_id'],'status'=>'pending_approval','requested_by'=>$r->user()->id,'notes'=>$d['notes']??null]);foreach($d['items'] as $item)$t->items()->create($item);return $t->load('items.product');},3);return response()->json(['message'=>'Transfer requested.','data'=>$transfer],201);}
-    public function salesOrders(){return response()->json(SalesOrder::with('items.product:id,sku,name')->latest()->paginate(20));}
-    public function createSalesOrder(Request $r){$d=$r->validate(['customer'=>'required|string|max:180','warehouse_id'=>'required|exists:warehouses,id','notes'=>'nullable|string','items'=>'required|array|min:1','items.*.product_id'=>'required|distinct|exists:products,id','items.*.quantity'=>'required|numeric|gt:0','items.*.unit_price'=>'required|decimal:0,2|min:0']);abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']),403);$order=DB::transaction(function()use($d,$r){$o=SalesOrder::create(['number'=>ReferenceNumber::next('sales_orders','SO'),'customer'=>$d['customer'],'warehouse_id'=>$d['warehouse_id'],'total'=>collect($d['items'])->sum(fn($i)=>$i['quantity']*$i['unit_price']),'notes'=>$d['notes']??null,'created_by'=>$r->user()->id]);foreach($d['items'] as $item)$o->items()->create($item);return $o->load('items.product');},3);return response()->json(['message'=>'Sales order created.','data'=>$order],201);}
-    public function salesAction(Request $r,SalesOrder $order,SalesService $service,string $action){abort_unless($r->user()->canAccessWarehouse($order->warehouse_id),403);$result=$action==='reserve'?$service->reserve($order):$service->dispatch($order,$r->user());return response()->json(['message'=>'Sales order updated.','data'=>$result]);}
-    public function adjustments(){return response()->json(StockAdjustment::latest()->paginate(20));}
-    public function createAdjustment(Request $r){$d=$r->validate(['warehouse_id'=>'required|exists:warehouses,id','product_id'=>'required|exists:products,id','counted_quantity'=>'required|numeric|min:0','reason'=>'required|in:damaged,lost,expired,counting_error,data_correction,other','notes'=>'nullable|string']);abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']),403);$system=(float)(Inventory::where(['warehouse_id'=>$d['warehouse_id'],'product_id'=>$d['product_id']])->value('on_hand')??0);$a=StockAdjustment::create($d+['number'=>ReferenceNumber::next('stock_adjustments','ADJ'),'system_quantity'=>$system,'difference'=>$d['counted_quantity']-$system,'requested_by'=>$r->user()->id]);return response()->json(['message'=>'Adjustment requested.','data'=>$a],201);}
-    public function approveAdjustment(Request $r,StockAdjustment $adjustment,AdjustmentService $service){return response()->json(['message'=>'Adjustment approved.','data'=>$service->approve($adjustment,$r->user())]);}
-    public function transferAction(Request $r,Transfer $transfer,TransferService $service,string $action){abort_unless($r->user()->canAccessWarehouse($transfer->source_warehouse_id)||$r->user()->canAccessWarehouse($transfer->destination_warehouse_id),403);return response()->json(['message'=>'Transfer updated.','data'=>$service->transition($transfer,$action,$r->user())]);}
+    public function purchaseOrders(Request $r)
+    {
+        return response()->json(PurchaseOrder::with('supplier:id,company_name', 'warehouse:id,name')->latest()->paginate(20));
+    }
+
+    public function purchaseOrder(PurchaseOrder $order)
+    {
+        Gate::authorize('view', $order);
+
+        return response()->json(['data' => $order->load('supplier', 'warehouse', 'items.product', 'receipts.items')]);
+    }
+
+    public function createPurchaseOrder(Request $r)
+    {
+        $d = $r->validate(['supplier_id' => 'required|exists:suppliers,id', 'warehouse_id' => 'required|exists:warehouses,id', 'order_date' => 'required|date', 'expected_delivery_date' => 'nullable|date|after_or_equal:order_date', 'discount' => 'nullable|decimal:0,2|min:0', 'tax' => 'nullable|decimal:0,2|min:0', 'notes' => 'nullable|string', 'items' => 'required|array|min:1', 'items.*.product_id' => 'required|distinct|exists:products,id', 'items.*.quantity' => 'required|numeric|gt:0', 'items.*.unit_price' => 'required|decimal:0,2|min:0']);
+        abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']), 403);
+        $order = DB::transaction(function () use ($d, $r) {
+            $subtotal = collect($d['items'])->sum(fn ($i) => $i['quantity'] * $i['unit_price']);
+            $order = PurchaseOrder::create(['number' => ReferenceNumber::next('purchase_orders', 'PO'), 'supplier_id' => $d['supplier_id'], 'warehouse_id' => $d['warehouse_id'], 'order_date' => $d['order_date'], 'expected_delivery_date' => $d['expected_delivery_date'] ?? null, 'subtotal' => $subtotal, 'discount' => $d['discount'] ?? 0, 'tax' => $d['tax'] ?? 0, 'total' => $subtotal - ($d['discount'] ?? 0) + ($d['tax'] ?? 0), 'notes' => $d['notes'] ?? null, 'created_by' => $r->user()->id]);
+            foreach ($d['items'] as $item) {
+                $order->items()->create($item + ['line_total' => $item['quantity'] * $item['unit_price']]);
+            }
+
+return $order->load('items.product');
+        }, 3);
+
+        return response()->json(['message' => 'Purchase order created.', 'data' => $order], 201);
+    }
+
+    public function submitPurchaseOrder(PurchaseOrder $order, NotificationService $notifications)
+    {
+        abort_unless($order->status === 'draft', 422, 'Only draft orders can be submitted.');
+        $order->update(['status' => 'pending_approval']);
+        $notifications->roles(['super-admin', 'warehouse-manager'], 'Purchase order awaiting approval', "{$order->number} requires approval.", 'warning', "/purchases/{$order->id}");
+
+        return response()->json(['message' => 'Purchase order submitted.', 'data' => $order]);
+    }
+
+    public function approvePurchaseOrder(Request $r, PurchaseOrder $order)
+    {
+        abort_unless($order->status === 'pending_approval', 422, 'Only pending orders can be approved.');
+        $order->update(['status' => 'approved', 'approved_by' => $r->user()->id, 'approved_at' => now()]);
+
+        return response()->json(['message' => 'Purchase order approved.', 'data' => $order]);
+    }
+
+    public function receive(Request $r, PurchaseOrder $order, PurchasingService $service)
+    {
+        $d = $r->validate(['items' => 'required|array|min:1', 'items.*.item_id' => 'required|integer', 'items.*.quantity' => 'required|numeric|gt:0', 'notes' => 'nullable|string']);
+        abort_unless($r->user()->canAccessWarehouse($order->warehouse_id), 403);
+
+        return response()->json(['message' => 'Goods received.', 'data' => $service->receive($order, $d['items'], $r->user(), $d['notes'] ?? null)], 201);
+    }
+
+    public function transfers()
+    {
+        return response()->json(Transfer::with('sourceWarehouse:id,name', 'destinationWarehouse:id,name', 'items.product:id,sku,name')->latest()->paginate(20));
+    }
+
+    public function transfer(Transfer $transfer)
+    {
+        Gate::authorize('view', $transfer);
+
+        return response()->json(['data' => $transfer->load('sourceWarehouse', 'destinationWarehouse', 'items.product')]);
+    }
+
+    public function createTransfer(Request $r)
+    {
+        $d = $r->validate(['source_warehouse_id' => 'required|different:destination_warehouse_id|exists:warehouses,id', 'destination_warehouse_id' => 'required|exists:warehouses,id', 'notes' => 'nullable|string', 'items' => 'required|array|min:1', 'items.*.product_id' => 'required|distinct|exists:products,id', 'items.*.quantity' => 'required|numeric|gt:0']);
+        abort_unless($r->user()->canAccessWarehouse($d['source_warehouse_id']), 403);
+        $transfer = DB::transaction(function () use ($d, $r) {
+            foreach ($d['items'] as $item) {
+                $available = (float) (Inventory::where(['product_id' => $item['product_id'], 'warehouse_id' => $d['source_warehouse_id']])->value(DB::raw('on_hand-reserved')) ?? 0);
+                if ($available < $item['quantity']) {
+                    abort(422, 'Insufficient source stock.');
+                }
+            }$t = Transfer::create(['number' => ReferenceNumber::next('transfers', 'TRF'), 'source_warehouse_id' => $d['source_warehouse_id'], 'destination_warehouse_id' => $d['destination_warehouse_id'], 'status' => 'pending_approval', 'requested_by' => $r->user()->id, 'notes' => $d['notes'] ?? null]);
+            foreach ($d['items'] as $item) {
+                $t->items()->create($item);
+            }
+
+return $t->load('items.product');
+        }, 3);
+
+        return response()->json(['message' => 'Transfer requested.', 'data' => $transfer], 201);
+    }
+
+    public function salesOrders()
+    {
+        return response()->json(SalesOrder::with('items.product:id,sku,name')->latest()->paginate(20));
+    }
+
+    public function salesOrder(SalesOrder $order)
+    {
+        Gate::authorize('view', $order);
+
+        return response()->json(['data' => $order->load('items.product')]);
+    }
+
+    public function createSalesOrder(Request $r)
+    {
+        $d = $r->validate(['customer' => 'required|string|max:180', 'warehouse_id' => 'required|exists:warehouses,id', 'notes' => 'nullable|string', 'items' => 'required|array|min:1', 'items.*.product_id' => 'required|distinct|exists:products,id', 'items.*.quantity' => 'required|numeric|gt:0', 'items.*.unit_price' => 'required|decimal:0,2|min:0']);
+        abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']), 403);
+        $order = DB::transaction(function () use ($d, $r) {
+            $o = SalesOrder::create(['number' => ReferenceNumber::next('sales_orders', 'SO'), 'customer' => $d['customer'], 'warehouse_id' => $d['warehouse_id'], 'total' => collect($d['items'])->sum(fn ($i) => $i['quantity'] * $i['unit_price']), 'notes' => $d['notes'] ?? null, 'created_by' => $r->user()->id]);
+            foreach ($d['items'] as $item) {
+                $o->items()->create($item);
+            }
+
+return $o->load('items.product');
+        }, 3);
+
+        return response()->json(['message' => 'Sales order created.', 'data' => $order], 201);
+    }
+
+    public function salesAction(Request $r, SalesOrder $order, SalesService $service, string $action)
+    {
+        abort_unless($r->user()->canAccessWarehouse($order->warehouse_id), 403);
+        $result = $action === 'reserve' ? $service->reserve($order) : $service->dispatch($order, $r->user());
+
+        return response()->json(['message' => 'Sales order updated.', 'data' => $result]);
+    }
+
+    public function adjustments()
+    {
+        return response()->json(StockAdjustment::latest()->paginate(20));
+    }
+
+    public function adjustment(StockAdjustment $adjustment)
+    {
+        Gate::authorize('view', $adjustment);
+
+        return response()->json(['data' => $adjustment]);
+    }
+
+    public function createAdjustment(Request $r)
+    {
+        $d = $r->validate(['warehouse_id' => 'required|exists:warehouses,id', 'product_id' => 'required|exists:products,id', 'counted_quantity' => 'required|numeric|min:0', 'reason' => 'required|in:damaged,lost,expired,counting_error,data_correction,other', 'notes' => 'nullable|string']);
+        abort_unless($r->user()->canAccessWarehouse($d['warehouse_id']), 403);
+        $system = (float) (Inventory::where(['warehouse_id' => $d['warehouse_id'], 'product_id' => $d['product_id']])->value('on_hand') ?? 0);
+        $a = StockAdjustment::create($d + ['number' => ReferenceNumber::next('stock_adjustments', 'ADJ'), 'system_quantity' => $system, 'difference' => $d['counted_quantity'] - $system, 'requested_by' => $r->user()->id]);
+
+        return response()->json(['message' => 'Adjustment requested.', 'data' => $a], 201);
+    }
+
+    public function approveAdjustment(Request $r, StockAdjustment $adjustment, AdjustmentService $service)
+    {
+        return response()->json(['message' => 'Adjustment approved.', 'data' => $service->approve($adjustment, $r->user())]);
+    }
+
+    public function transferAction(Request $r, Transfer $transfer, TransferService $service, string $action)
+    {
+        abort_unless($r->user()->canAccessWarehouse($transfer->source_warehouse_id) || $r->user()->canAccessWarehouse($transfer->destination_warehouse_id), 403);
+
+        return response()->json(['message' => 'Transfer updated.', 'data' => $service->transition($transfer,$action,$r->user())]);
+    }
 }

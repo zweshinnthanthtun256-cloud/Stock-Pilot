@@ -18,12 +18,21 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
-    public function roles() { return $this->belongsToMany(Role::class); }
-    public function warehouses() { return $this->belongsToMany(Warehouse::class); }
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+
+    public function warehouses()
+    {
+        return $this->belongsToMany(Warehouse::class);
+    }
+
     public function hasPermission(string $permission): bool
     {
         return $this->roles()->whereHas('permissions', fn ($q) => $q->where('name', $permission))->exists();
     }
+
     public function canAccessWarehouse(int $warehouseId): bool
     {
         return $this->roles()->where('name', 'super-admin')->exists()

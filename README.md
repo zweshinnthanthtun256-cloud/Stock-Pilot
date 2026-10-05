@@ -24,6 +24,9 @@ The backend is a modular monolith with thin API controllers and transactional se
 - Approval/shipping/receiving transfer workflow without in-transit duplication
 - Sales orders, adjustments, audit logs, settings, notifications-ready schema, dashboard KPIs, and server pagination
 - Responsive React admin shell, protected routes, dashboard chart, data table states, API error handling, and production build
+- Create/edit/detail screens for products, suppliers, warehouses, users, purchase orders, transfers, sales orders, adjustments, and manual stock operations
+- Role/permission management, system settings, database notifications, audit history, validated file uploads, and printable SVG barcodes
+- Inventory, low-stock, movement, purchasing, supplier, transfer, adjustment, and valuation report views with filters and CSV inventory export
 - MySQL, Redis, API, queue, scheduler, and web Docker services
 
 ## Project layout
@@ -84,6 +87,8 @@ Demo credentials are created only by the development seeder. Never run that seed
 cd stockpilot-api && composer test
 cd stockpilot-web && npm run lint && npm run build
 ```
+
+Current verified result: 14 backend tests pass with 31 assertions. MySQL migrations and seeders complete successfully, frontend lint has no warnings, and the production frontend build succeeds.
 
 ## Security and operations
 
