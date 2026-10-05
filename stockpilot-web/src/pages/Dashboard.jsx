@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowUpRight, Boxes, Building2, CircleDollarSign, Package, ShoppingCart, Sparkles, Truck, Users } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { api } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
 
@@ -15,17 +15,19 @@ const metrics = [
   ['pending_transfers','Pending transfers',Truck,'In transit'],
 ]
 
-const barColors=['#b7f34b','#70d68b','#42b989','#2f9a7c','#79c45a']
+const chartColors=['#b7f34b','#63d58b','#35b990','#2697a1','#5278d7','#8b69d6']
 
 function ChartTooltip({active,payload,label}) {
   if (!active || !payload?.length) return null
-  return <div className="rounded-xl border border-white/10 bg-[#08140e]/95 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="text-xs font-semibold text-[#7f9387]">{label}</div><div className="mt-1 text-lg font-black text-[#d8ff91]">{Number(payload[0].value).toLocaleString()} <span className="text-xs font-medium text-[#7f9387]">units</span></div></div>
+  return <div className="rounded-xl border border-white/10 bg-[#08140e]/95 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="text-xs font-semibold text-[#7f9387]">{payload[0].name||label}</div><div className="mt-1 text-lg font-black text-[#d8ff91]">{Number(payload[0].value).toLocaleString()} <span className="text-xs font-medium text-[#7f9387]">units</span></div></div>
 }
 
 export function Dashboard() {
   const [data,setData]=useState(null)
   const [error,setError]=useState('')
   useEffect(()=>{api.get('/dashboard').then(r=>setData(r.data.data)).catch(e=>setError(e.message))},[])
+  const warehouseRows=(data?.stock_by_warehouse||[]).map(row=>({...row,quantity:Number(row.quantity||0)}))
+  const totalStock=warehouseRows.reduce((sum,row)=>sum+row.quantity,0)
 
   if(error) return <div className="card p-12 text-center"><AlertTriangle className="mx-auto text-amber-400"/><h2 className="mt-3 font-bold">Dashboard unavailable</h2><p className="mt-1 text-sm text-[#819389]">{error}</p></div>
 
@@ -49,8 +51,14 @@ export function Dashboard() {
 
     <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
       <section className="card overflow-hidden p-5 md:p-6">
-        <div className="mb-6 flex items-start justify-between"><div><h3 className="panel-title">Stock by warehouse</h3><p className="mt-1 text-sm text-[#75897d]">Live on-hand quantities across your network</p></div><span className="rounded-full border border-[#b7f34b]/12 bg-[#b7f34b]/7 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#addc70]">Live</span></div>
-        <div className="h-72"><ResponsiveContainer><BarChart data={data?.stock_by_warehouse||[]} margin={{top:8,right:4,left:-18,bottom:0}} barCategoryGap="30%"><defs><linearGradient id="stockBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#b7f34b"/><stop offset="100%" stopColor="#3aa87b"/></linearGradient></defs><CartesianGrid strokeDasharray="4 7" vertical={false} stroke="rgba(255,255,255,.07)"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{fill:'#71877a',fontSize:11,fontWeight:600}} dy={10}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#5f7468',fontSize:11}}/><Tooltip content={<ChartTooltip/>} cursor={{fill:'rgba(183,243,75,.04)',radius:8}}/><Bar dataKey="quantity" fill="url(#stockBar)" radius={[8,8,3,3]} animationDuration={1100} animationEasing="ease-out">{(data?.stock_by_warehouse||[]).map((_,index)=><Cell key={index} fill={barColors[index%barColors.length]}/>)}</Bar></BarChart></ResponsiveContainer></div>
+        <div className="mb-3 flex items-start justify-between"><div><h3 className="panel-title">Inventory distribution</h3><p className="mt-1 text-sm text-[#75897d]">Stock allocation across your warehouse network</p></div><span className="rounded-full border border-[#b7f34b]/12 bg-[#b7f34b]/7 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#addc70]">Live</span></div>
+        <div className="grid min-h-72 items-center gap-3 md:grid-cols-[1fr_1.1fr]">
+          <div className="relative mx-auto h-64 w-full max-w-72">
+            <ResponsiveContainer><PieChart><defs><filter id="donutGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><Pie data={warehouseRows} dataKey="quantity" nameKey="name" cx="50%" cy="50%" innerRadius="67%" outerRadius="88%" paddingAngle={warehouseRows.length>1?4:0} cornerRadius={8} stroke="none" animationBegin={120} animationDuration={1200} animationEasing="ease-out">{warehouseRows.map((_,index)=><Cell key={index} fill={chartColors[index%chartColors.length]} style={{filter:'url(#donutGlow)'}}/>)}</Pie><Tooltip content={<ChartTooltip/>}/></PieChart></ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 grid place-items-center text-center"><div><div className="text-3xl font-black tracking-tight text-[#f0f8f2]">{totalStock.toLocaleString()}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#63786c]">Total units</div></div></div>
+          </div>
+          <div className="space-y-4">{warehouseRows.map((row,index)=>{const percentage=totalStock?Math.round((Number(row.quantity)/totalStock)*100):0;return <div key={row.name} className="group"><div className="mb-2 flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_12px_currentColor]" style={{backgroundColor:chartColors[index%chartColors.length],color:chartColors[index%chartColors.length]}}/><span className="truncate text-sm font-bold text-[#cbd8cf]">{row.name}</span></div><div className="text-right"><span className="text-sm font-black text-[#edf5ef]">{Number(row.quantity).toLocaleString()}</span><span className="ml-2 text-[10px] font-bold text-[#6d8276]">{percentage}%</span></div></div><div className="h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full origin-left animate-[grow-x_1s_cubic-bezier(.22,1,.36,1)_both] rounded-full" style={{width:`${percentage}%`,background:`linear-gradient(90deg,${chartColors[index%chartColors.length]}99,${chartColors[index%chartColors.length]})`,animationDelay:`${220+index*90}ms`}}/></div></div>})}{data&&warehouseRows.length===0&&<div className="py-12 text-center text-sm text-[#6d8276]">No warehouse stock to chart yet.</div>}</div>
+        </div>
       </section>
 
       <section className="card p-5 md:p-6"><div className="flex items-start justify-between"><div><h3 className="panel-title">Attention needed</h3><p className="mt-1 text-sm text-[#75897d]">Active inventory alerts</p></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-400/10 text-amber-300"><AlertTriangle size={17}/></span></div><div className="mt-5 space-y-3">{data?.alerts?.map((alert,index)=><div key={alert.id} style={{animationDelay:`${index*70}ms`}} className="group flex animate-[rise-in_.4s_ease_both] items-center justify-between rounded-xl border border-white/7 bg-white/[.025] p-3.5 transition hover:border-amber-300/15 hover:bg-amber-300/[.035]"><div><div className="text-sm font-bold text-[#dfeae2]">Product #{alert.product_id}</div><div className="mt-0.5 text-xs text-[#71857a]">{alert.quantity} units available</div></div><StatusBadge value={alert.level}/></div>)}{data&&!data.alerts.length&&<div className="grid min-h-52 place-items-center text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#b7f34b]/8 text-[#b7f34b]"><Sparkles size={20}/></div><p className="mt-4 text-sm font-bold text-[#bfd0c5]">All levels look healthy</p><p className="mt-1 text-xs text-[#687d71]">No stock alerts need attention.</p></div></div>}</div></section>
