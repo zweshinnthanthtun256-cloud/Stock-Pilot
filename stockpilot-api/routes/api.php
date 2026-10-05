@@ -13,6 +13,12 @@ use App\Http\Controllers\Api\V1\WorkflowController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
+    Route::get('/', fn () => response()->json([
+        'name' => 'StockPilot API',
+        'status' => 'ok',
+        'version' => 'v1',
+        'frontend_url' => config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')),
+    ]));
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
     Route::post('/auth/forgot-password', [AuthController::class, 'forgot'])->middleware('throttle:6,1');
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
@@ -71,6 +77,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/{resource}', [CatalogController::class, 'index'])->whereIn('resource', ['products', 'categories', 'brands', 'units', 'suppliers', 'warehouses']);
         Route::post('/{resource}', [CatalogController::class, 'store'])->whereIn('resource', ['products', 'categories', 'brands', 'units', 'suppliers', 'warehouses'])->middleware('permission:master.manage');
         Route::get('/{resource}/{id}', [CatalogController::class, 'show'])->whereIn('resource', ['products', 'categories', 'brands', 'units', 'suppliers', 'warehouses']);
-        Route::put('/{resource}/{id}',[CatalogController::class, 'update'])->whereIn('resource',['products', 'categories', 'brands', 'units', 'suppliers', 'warehouses'])->middleware('permission:master.manage');
+        Route::put('/{resource}/{id}', [CatalogController::class, 'update'])->whereIn('resource', ['products', 'categories', 'brands', 'units', 'suppliers', 'warehouses'])->middleware('permission:master.manage');
     });
 });
