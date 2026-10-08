@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Bell, Boxes, ChevronRight, ClipboardList, LayoutDashboard, LogOut, Menu, Package, Settings, ShieldCheck, ShoppingCart, Truck, Users, Warehouse, X } from 'lucide-react'
 import { useAuth } from '../stores/auth'
 
@@ -14,6 +14,7 @@ export function AppLayout() {
   const [open, setOpen] = useState(false)
   const { user, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const title = sections.flatMap(section => section.items).find(item => item[1] === location.pathname)?.[0] || 'StockPilot'
 
   return <div className="app-shell min-h-screen bg-[#07110d] text-[#e8f2eb]">
@@ -42,7 +43,7 @@ export function AppLayout() {
           <div><div className="flex items-center gap-1.5 text-[11px] font-medium text-[#61766a]"><span>StockPilot</span><ChevronRight size={11}/><span className="text-[#91a599]">{title}</span></div><h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-[#f0f8f2]">{title}</h1></div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="relative rounded-xl border border-white/7 bg-white/4 p-2.5 text-[#91a59a] transition hover:border-[#b7f34b]/20 hover:bg-[#b7f34b]/8 hover:text-[#d8ff91]"><Bell size={19}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f9906f] ring-2 ring-[#07110d]"/></button>
+          <button aria-label="Open notifications" className="relative rounded-xl border border-white/7 bg-white/4 p-2.5 text-[#91a59a] transition hover:border-[#b7f34b]/20 hover:bg-[#b7f34b]/8 hover:text-[#d8ff91]" onClick={()=>navigate('/notifications')}><Bell size={19}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f9906f] ring-2 ring-[#07110d]"/></button>
           <div className="hidden h-8 w-px bg-white/8 sm:block"/>
           <button className="group flex items-center gap-2.5 rounded-xl border border-transparent p-1.5 transition hover:border-white/7 hover:bg-white/4" onClick={logout}>
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#b7f34b] to-[#68c978] text-sm font-black text-[#10200f]">{user?.name?.[0]||'U'}</span>

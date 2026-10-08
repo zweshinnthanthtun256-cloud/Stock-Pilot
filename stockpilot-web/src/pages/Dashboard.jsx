@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, Boxes, Building2, CircleDollarSign, Packag
 import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
+import { useNavigate } from 'react-router-dom'
 
 const metrics = [
   ['products','Total products',Package,'Catalog'],
@@ -29,6 +30,7 @@ function MovementTooltip({active,payload}) {
 }
 
 export function Dashboard() {
+  const navigate=useNavigate()
   const [data,setData]=useState(null)
   const [error,setError]=useState('')
   useEffect(()=>{api.get('/dashboard').then(r=>setData(r.data.data)).catch(e=>setError(e.message))},[])
@@ -44,7 +46,7 @@ export function Dashboard() {
       <div className="absolute bottom-0 right-1/4 h-24 w-56 rounded-full bg-emerald-400/6 blur-3xl"/>
       <div className="relative flex flex-wrap items-end justify-between gap-5">
         <div><div className="eyebrow flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-[#b7f34b] shadow-[0_0_14px_#b7f34b]"/>Live operational overview</div><h2 className="mt-3 max-w-2xl text-3xl font-black tracking-[-.035em] text-[#f3f9f4] md:text-4xl">Everything in motion,<br/><span className="bg-gradient-to-r from-[#d8ff91] to-[#68d98d] bg-clip-text text-transparent">under control.</span></h2><p className="mt-3 max-w-xl text-sm leading-6 text-[#809388]">Monitor inventory, warehouse activity, and exceptions from one real-time command center.</p></div>
-        <button className="btn-primary"><Sparkles size={17}/>New stock transaction<ArrowUpRight size={16}/></button>
+        <button className="btn-primary" onClick={()=>navigate('/inventory/stock')}><Sparkles size={17}/>New stock transaction<ArrowUpRight size={16}/></button>
       </div>
     </section>
 

@@ -1,4 +1,127 @@
-import{useEffect}from'react';import{BrowserRouter,Navigate,Route,Routes}from'react-router-dom';import{AppLayout}from'./layouts/AppLayout';import{Dashboard}from'./pages/Dashboard';import{DetailPage}from'./pages/DetailPage';import{EntityForm}from'./pages/EntityForm';import{Login}from'./pages/Login';import{ReportCenter}from'./pages/ReportCenter';import{ResourceList}from'./pages/ResourceList';import{RoleManager}from'./pages/RoleManager';import{AuditLogs,Notifications,Settings}from'./pages/SystemPages';import{WorkflowForm}from'./pages/WorkflowForm';import{useAuth}from'./stores/auth'
-function Protected({children}){const{user,loading,restore}=useAuth();useEffect(()=>{restore()},[restore]);if(loading)return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Loading StockPilot…</div>;return user?children:<Navigate to="/login" replace/>}
-const listTypes=['products','suppliers','warehouses','inventory','movements','purchases','transfers','sales'];
-export default function App(){return <BrowserRouter><Routes><Route path="/login" element={<Login/>}/><Route element={<Protected><AppLayout/></Protected>}><Route index element={<Dashboard/>}/>{listTypes.map(type=><Route key={type} path={type} element={<ResourceList type={type}/>}/>)}{['products','suppliers','warehouses'].map(type=><Route key={`${type}-new`} path={`${type}/new`} element={<EntityForm type={type}/>}/>)}{['products','suppliers','warehouses'].map(type=><Route key={`${type}-edit`} path={`${type}/:id/edit`} element={<EntityForm type={type}/>}/>)}<Route path="products/:id" element={<DetailPage type="products"/>}/><Route path="inventory/stock" element={<WorkflowForm type="stock"/>}/><Route path="inventory/adjustments/new" element={<WorkflowForm type="adjustment"/>}/><Route path="purchases/new" element={<WorkflowForm type="purchase"/>}/><Route path="purchases/:id" element={<DetailPage type="purchases"/>}/><Route path="transfers/new" element={<WorkflowForm type="transfer"/>}/><Route path="transfers/:id" element={<DetailPage type="transfers"/>}/><Route path="sales/new" element={<WorkflowForm type="sale"/>}/><Route path="sales/:id" element={<DetailPage type="sales"/>}/><Route path="adjustments/:id" element={<DetailPage type="adjustments"/>}/><Route path="reports" element={<ReportCenter/>}/><Route path="admin" element={<ResourceList type="users"/>}/><Route path="users/new" element={<EntityForm type="users"/>}/><Route path="users/:id/edit" element={<EntityForm type="users"/>}/><Route path="roles" element={<RoleManager/>}/><Route path="settings" element={<Settings/>}/><Route path="notifications" element={<Notifications/>}/><Route path="audit-logs" element={<AuditLogs/>}/></Route><Route path="*" element={<div className="grid min-h-screen place-items-center text-center"><div><div className="text-7xl font-bold text-[#1d5b3a]">404</div><p className="mt-3 text-slate-500">That page does not exist.</p></div></div>}/></Routes></BrowserRouter>}
+import { useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AppLayout } from "./layouts/AppLayout";
+import { Dashboard } from "./pages/Dashboard";
+import { DetailPage } from "./pages/DetailPage";
+import { EntityForm } from "./pages/EntityForm";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { Login } from "./pages/Login";
+import { ReportCenter } from "./pages/ReportCenter";
+import { ResourceList } from "./pages/ResourceList";
+import { RoleManager } from "./pages/RoleManager";
+import { AuditLogs, Notifications, Settings } from "./pages/SystemPages";
+import { WorkflowForm } from "./pages/WorkflowForm";
+import { useAuth } from "./stores/auth";
+function Protected({ children }) {
+  const { user, loading, restore } = useAuth();
+  useEffect(() => {
+    if (loading) restore();
+  }, [loading, restore]);
+  if (loading)
+    return (
+      <div className="grid min-h-screen place-items-center text-sm text-slate-500">
+        Loading StockPilot…
+      </div>
+    );
+  return user ? children : <Navigate to="/login" replace />;
+}
+const listTypes = [
+  "products",
+  "suppliers",
+  "warehouses",
+  "inventory",
+  "movements",
+  "purchases",
+  "transfers",
+  "sales",
+];
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route
+          element={
+            <Protected>
+              <AppLayout />
+            </Protected>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          {listTypes.map((type) => (
+            <Route
+              key={type}
+              path={type}
+              element={<ResourceList type={type} />}
+            />
+          ))}
+          {["products", "suppliers", "warehouses"].map((type) => (
+            <Route
+              key={`${type}-new`}
+              path={`${type}/new`}
+              element={<EntityForm type={type} />}
+            />
+          ))}
+          {["products", "suppliers", "warehouses"].map((type) => (
+            <Route
+              key={`${type}-edit`}
+              path={`${type}/:id/edit`}
+              element={<EntityForm type={type} />}
+            />
+          ))}
+          <Route path="products/:id" element={<DetailPage type="products" />} />
+          <Route
+            path="inventory/stock"
+            element={<WorkflowForm type="stock" />}
+          />
+          <Route
+            path="inventory/adjustments/new"
+            element={<WorkflowForm type="adjustment" />}
+          />
+          <Route
+            path="purchases/new"
+            element={<WorkflowForm type="purchase" />}
+          />
+          <Route
+            path="purchases/:id"
+            element={<DetailPage type="purchases" />}
+          />
+          <Route
+            path="transfers/new"
+            element={<WorkflowForm type="transfer" />}
+          />
+          <Route
+            path="transfers/:id"
+            element={<DetailPage type="transfers" />}
+          />
+          <Route path="sales/new" element={<WorkflowForm type="sale" />} />
+          <Route path="sales/:id" element={<DetailPage type="sales" />} />
+          <Route
+            path="adjustments/:id"
+            element={<DetailPage type="adjustments" />}
+          />
+          <Route path="reports" element={<ReportCenter />} />
+          <Route path="admin" element={<ResourceList type="users" />} />
+          <Route path="users/new" element={<EntityForm type="users" />} />
+          <Route path="users/:id/edit" element={<EntityForm type="users" />} />
+          <Route path="roles" element={<RoleManager />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
+        </Route>
+        <Route
+          path="*"
+          element={
+            <div className="grid min-h-screen place-items-center text-center">
+              <div>
+                <div className="text-7xl font-bold text-[#1d5b3a]">404</div>
+                <p className="mt-3 text-slate-500">That page does not exist.</p>
+              </div>
+            </div>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
